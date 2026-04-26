@@ -20,10 +20,11 @@ export type Database = {
 };
 
 function bindAndCall<T>(
-    method: (params?: StatementParams) => T,
+    method: () => T,
+    methodWithParams: (params: StatementParams) => T,
     params?: StatementParams
 ): T {
-    return params === undefined ? method() : method(normalizeParams(params));
+    return params === undefined ? method() : methodWithParams(normalizeParams(params));
 }
 
 function normalizeParams(params: StatementParams): StatementParams {
@@ -44,13 +45,13 @@ export const db: Database = {
         const statement = rawDb.prepare(sql);
         return {
             all(params) {
-                return bindAndCall((boundParams) => statement.all(boundParams), params);
+                return bindAndCall(() => statement.all(), (boundParams) => statement.all(boundParams), params);
             },
             get(params) {
-                return bindAndCall((boundParams) => statement.get(boundParams), params);
+                return bindAndCall(() => statement.get(), (boundParams) => statement.get(boundParams), params);
             },
             run(params) {
-                return bindAndCall((boundParams) => statement.run(boundParams), params);
+                return bindAndCall(() => statement.run(), (boundParams) => statement.run(boundParams), params);
             }
         };
     },
