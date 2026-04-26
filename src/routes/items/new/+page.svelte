@@ -12,5 +12,11 @@
 </header>
 
 <section class="px-4 pb-6">
-	<ItemForm data={data.form} photoUrl={data.form.data.photoUrl} submitLabel="Save item" />
+	<ItemForm
+		data={data.form}
+		photoUrl={data.form.data.photoUrl}
+		categories={data.categories}
+		aiSuggested={data.aiSuggested}
+		submitLabel="Save item"
+	/>
 </section>

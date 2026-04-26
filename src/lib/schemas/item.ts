@@ -15,7 +15,9 @@ export const itemFormSchema = z.object({
 	barcode: z.string().max(64).optional().or(z.literal('').transform(() => undefined)),
 	quantity: z.coerce.number().int().min(0).max(99999).default(1),
 	photoUrl: z.string().url().optional().or(z.literal('').transform(() => undefined)),
-	photoPublicId: z.string().optional().or(z.literal('').transform(() => undefined))
+	photoPublicId: z.string().optional().or(z.literal('').transform(() => undefined)),
+	categoryIds: z.array(z.coerce.number().int().positive()).default([]),
+	tags: z.array(z.string().min(1).max(40)).max(20).default([])
 });
 
 export type ItemFormData = z.infer<typeof itemFormSchema>;
@@ -30,3 +32,10 @@ export const aiExtractedSchema = z.object({
 });
 
 export type AiExtracted = z.infer<typeof aiExtractedSchema>;
+
+export const aiClassifiedSchema = z.object({
+	categories: z.array(z.string()).max(5),
+	tags: z.array(z.string()).max(8)
+});
+
+export type AiClassified = z.infer<typeof aiClassifiedSchema>;

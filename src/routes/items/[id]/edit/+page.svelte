@@ -12,5 +12,10 @@
 </header>
 
 <section class="px-4 pb-6">
-	<ItemForm data={data.form} photoUrl={data.item.photoUrl} submitLabel="Save changes" />
+	<ItemForm
+		data={data.form}
+		photoUrl={data.item.photoUrl}
+		categories={data.categories}
+		submitLabel="Save changes"
+	/>
 </section>

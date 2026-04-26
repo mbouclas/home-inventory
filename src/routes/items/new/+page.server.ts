@@ -4,8 +4,34 @@ import { zod4 } from 'sveltekit-superforms/adapters';
 import type { Actions, PageServerLoad } from './$types';
 import { itemFormSchema } from '$lib/schemas/item';
 import { db } from '$lib/server/db';
+import {
+	listCategories,
+	setItemCategories,
+	setItemTags
+} from '$lib/server/db/relations';
 
 export const load: PageServerLoad = async ({ url }) => {
+	const categories = listCategories();
+	const categoriesByName = new Map(categories.map((c) => [c.name, c.id]));
+
+	const rawTags = url.searchParams.get('tags') ?? '';
+	const tags = rawTags
+		? rawTags
+				.split(',')
+				.map((t) => t.trim().toLowerCase())
+				.filter((t) => t.length > 0)
+		: [];
+
+	const rawCategoryNames = url.searchParams.get('categoryNames') ?? '';
+	const categoryIds = rawCategoryNames
+		? rawCategoryNames
+				.split('|')
+				.map((n) => categoriesByName.get(n.trim()))
+				.filter((id): id is number => typeof id === 'number')
+		: [];
+
+	const aiSuggested = url.searchParams.get('ai') === '1';
+
 	const initial = {
 		name: url.searchParams.get('name') ?? '',
 		dosage: url.searchParams.get('dosage') ?? '',
@@ -15,10 +41,12 @@ export const load: PageServerLoad = async ({ url }) => {
 		barcode: url.searchParams.get('barcode') ?? '',
 		quantity: Number(url.searchParams.get('quantity') ?? 1),
 		photoUrl: url.searchParams.get('photoUrl') ?? '',
-		photoPublicId: url.searchParams.get('photoPublicId') ?? ''
+		photoPublicId: url.searchParams.get('photoPublicId') ?? '',
+		categoryIds,
+		tags
 	};
 	const form = await superValidate(initial, zod4(itemFormSchema));
-	return { form };
+	return { form, categories, aiSuggested };
 };
 
 export const actions: Actions = {
@@ -26,28 +54,35 @@ export const actions: Actions = {
 		const form = await superValidate(request, zod4(itemFormSchema));
 		if (!form.valid) return fail(400, { form });
 
-		const created = db
-			.query(
-				`INSERT INTO items (
-					name, dosage, description, usage, expiry_date, barcode,
-					quantity, photo_url, photo_public_id, updated_at
-				) VALUES (
-					$name, $dosage, $description, $usage, $expiryDate, $barcode,
-					$quantity, $photoUrl, $photoPublicId, $updatedAt
-				) RETURNING id`
-			)
-			.get({
-				$name: form.data.name,
-				$dosage: form.data.dosage ?? null,
-				$description: form.data.description ?? null,
-				$usage: form.data.usage ?? null,
-				$expiryDate: form.data.expiryDate ?? null,
-				$barcode: form.data.barcode ?? null,
-				$quantity: form.data.quantity,
-				$photoUrl: form.data.photoUrl ?? null,
-				$photoPublicId: form.data.photoPublicId ?? null,
-				$updatedAt: Date.now()
-			}) as { id: number };
+		const tx = db.transaction(() => {
+			const created = db
+				.query(
+					`INSERT INTO items (
+						name, dosage, description, usage, expiry_date, barcode,
+						quantity, photo_url, photo_public_id, updated_at
+					) VALUES (
+						$name, $dosage, $description, $usage, $expiryDate, $barcode,
+						$quantity, $photoUrl, $photoPublicId, $updatedAt
+					) RETURNING id`
+				)
+				.get({
+					$name: form.data.name,
+					$dosage: form.data.dosage ?? null,
+					$description: form.data.description ?? null,
+					$usage: form.data.usage ?? null,
+					$expiryDate: form.data.expiryDate ?? null,
+					$barcode: form.data.barcode ?? null,
+					$quantity: form.data.quantity,
+					$photoUrl: form.data.photoUrl ?? null,
+					$photoPublicId: form.data.photoPublicId ?? null,
+					$updatedAt: Date.now()
+				}) as { id: number };
+
+			setItemCategories(created.id, form.data.categoryIds);
+			setItemTags(created.id, form.data.tags);
+			return created;
+		});
+		const created = tx();
 
 		throw redirect(303, `/items?added=${created.id}`);
 	}

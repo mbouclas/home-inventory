@@ -4,6 +4,13 @@ import { zod4 } from 'sveltekit-superforms/adapters';
 import type { Actions, PageServerLoad } from './$types';
 import { itemFormSchema } from '$lib/schemas/item';
 import { db, ITEM_COLUMNS, type Item } from '$lib/server/db';
+import {
+	getItemCategoryIds,
+	getItemTagNames,
+	listCategories,
+	setItemCategories,
+	setItemTags
+} from '$lib/server/db/relations';
 
 export const load: PageServerLoad = async ({ params }) => {
 	const id = Number(params.id);
@@ -12,6 +19,10 @@ export const load: PageServerLoad = async ({ params }) => {
 		.query(`SELECT ${ITEM_COLUMNS} FROM items WHERE id = $id`)
 		.get({ $id: id }) as Item | null;
 	if (!item) throw error(404, 'not found');
+
+	const categoryIds = getItemCategoryIds(id);
+	const tags = getItemTagNames(id);
+	const categories = listCategories();
 
 	const form = await superValidate(
 		{
@@ -23,12 +34,14 @@ export const load: PageServerLoad = async ({ params }) => {
 			barcode: item.barcode ?? '',
 			quantity: item.quantity,
 			photoUrl: item.photoUrl ?? '',
-			photoPublicId: item.photoPublicId ?? ''
+			photoPublicId: item.photoPublicId ?? '',
+			categoryIds,
+			tags
 		},
 		zod4(itemFormSchema)
 	);
 
-	return { form, item };
+	return { form, item, categories };
 };
 
 export const actions: Actions = {
@@ -39,32 +52,38 @@ export const actions: Actions = {
 		const form = await superValidate(request, zod4(itemFormSchema));
 		if (!form.valid) return fail(400, { form });
 
-		db.query(
-			`UPDATE items SET
-				name = $name,
-				dosage = $dosage,
-				description = $description,
-				usage = $usage,
-				expiry_date = $expiryDate,
-				barcode = $barcode,
-				quantity = $quantity,
-				photo_url = $photoUrl,
-				photo_public_id = $photoPublicId,
-				updated_at = $updatedAt
-			WHERE id = $id`
-		).run({
-			$name: form.data.name,
-			$dosage: form.data.dosage ?? null,
-			$description: form.data.description ?? null,
-			$usage: form.data.usage ?? null,
-			$expiryDate: form.data.expiryDate ?? null,
-			$barcode: form.data.barcode ?? null,
-			$quantity: form.data.quantity,
-			$photoUrl: form.data.photoUrl ?? null,
-			$photoPublicId: form.data.photoPublicId ?? null,
-			$updatedAt: Date.now(),
-			$id: id
+		const tx = db.transaction(() => {
+			db.query(
+				`UPDATE items SET
+					name = $name,
+					dosage = $dosage,
+					description = $description,
+					usage = $usage,
+					expiry_date = $expiryDate,
+					barcode = $barcode,
+					quantity = $quantity,
+					photo_url = $photoUrl,
+					photo_public_id = $photoPublicId,
+					updated_at = $updatedAt
+				WHERE id = $id`
+			).run({
+				$name: form.data.name,
+				$dosage: form.data.dosage ?? null,
+				$description: form.data.description ?? null,
+				$usage: form.data.usage ?? null,
+				$expiryDate: form.data.expiryDate ?? null,
+				$barcode: form.data.barcode ?? null,
+				$quantity: form.data.quantity,
+				$photoUrl: form.data.photoUrl ?? null,
+				$photoPublicId: form.data.photoPublicId ?? null,
+				$updatedAt: Date.now(),
+				$id: id
+			});
+
+			setItemCategories(id, form.data.categoryIds);
+			setItemTags(id, form.data.tags);
 		});
+		tx();
 
 		throw redirect(303, '/items');
 	}

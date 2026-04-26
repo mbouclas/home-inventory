@@ -39,6 +39,10 @@
 					expiryDate: string | null;
 					barcode: string | null;
 				};
+				classification?: {
+					categories: string[];
+					tags: string[];
+				};
 			};
 
 			const params = new URLSearchParams();
@@ -48,6 +52,13 @@
 				if (v) params.set(k, v);
 			}
 			params.set('quantity', '1');
+			if (data.classification?.tags?.length) {
+				params.set('tags', data.classification.tags.join(','));
+			}
+			if (data.classification?.categories?.length) {
+				params.set('categoryNames', data.classification.categories.join('|'));
+			}
+			params.set('ai', '1');
 			await goto(`/items/new?${params.toString()}`);
 		} catch (err) {
 			console.error(err);
