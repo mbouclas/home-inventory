@@ -28,7 +28,6 @@
 	},
 	"dependencies": {
 		"@lucide/svelte": "^1.11.0",
-		"better-sqlite3": "^12.9.0",
 		"bits-ui": "^2.18.0",
 		"cloudinary": "^2.10.0",
 		"clsx": "^2.1.1",

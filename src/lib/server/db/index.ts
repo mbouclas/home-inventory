@@ -1,4 +1,4 @@
-import BetterSqlite3 from 'better-sqlite3';
+import { Database as BunDatabase } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { env } from '$env/dynamic/private';
@@ -38,7 +38,7 @@ function normalizeParams(params: StatementParams): StatementParams {
 const dbPath = (env.DATABASE_PATH ?? './data/pharmacy.db').replace(/^file:/, '');
 mkdirSync(dirname(dbPath), { recursive: true });
 
-const rawDb = new BetterSqlite3(dbPath);
+const rawDb = new BunDatabase(dbPath, { create: true });
 
 export const db: Database = {
     query(sql) {
