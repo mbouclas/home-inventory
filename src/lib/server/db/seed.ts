@@ -1,4 +1,4 @@
-import type { Database } from 'bun:sqlite';
+import type { Database } from './index';
 import { slugify } from '$lib/utils';
 
 const STARTER_CATEGORIES = [

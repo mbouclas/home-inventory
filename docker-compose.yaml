@@ -23,6 +23,7 @@ services:
       NOTIFY_EMAIL: ${NOTIFY_EMAIL}
       CRON_SECRET: ${CRON_SECRET}
       PORT: ${PORT:-3000}
+      ORIGIN: ${ORIGIN}
     volumes:
       - ./data:/app/data
     restart: unless-stopped
