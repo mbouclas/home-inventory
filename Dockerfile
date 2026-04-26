@@ -1,22 +1,26 @@
 # syntax=docker/dockerfile:1.7
-FROM oven/bun:1-alpine AS base
+FROM oven/bun:1-alpine AS bun-base
 WORKDIR /app
 
-FROM base AS deps
+FROM node:22-alpine AS node-base
+WORKDIR /app
+
+FROM bun-base AS deps
 RUN apk add --no-cache python3 make g++
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
-FROM deps AS build
+FROM node-base AS build
 COPY . .
-RUN bun run build
+COPY --from=deps /app/node_modules ./node_modules
+RUN node ./node_modules/vite/bin/vite.js build
 
-FROM base AS prod-deps
+FROM bun-base AS prod-deps
 RUN apk add --no-cache python3 make g++
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 
-FROM base AS release
+FROM node-base AS release
 
 ENV NODE_ENV=production \
     PORT=3000 \
@@ -30,4 +34,4 @@ RUN mkdir -p /app/data
 
 EXPOSE 3000
 
-CMD ["bun", "./build/index.js"]
+CMD ["node", "./build/index.js"]
