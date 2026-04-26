@@ -4,10 +4,9 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
-	ssr: {
-		external: ['bun:sqlite']
-	},
-	optimizeDeps: {
-		exclude: ['bun:sqlite']
+	server: {
+		watch: {
+			ignored: ['**/.env', '**/.env.*']
+		}
 	}
 });
