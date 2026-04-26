@@ -1,4 +1,4 @@
-import { Database as BunDatabase } from 'bun:sqlite';
+import BetterSqlite3 from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { env } from '$env/dynamic/private';
@@ -38,20 +38,20 @@ function normalizeParams(params: StatementParams): StatementParams {
 const dbPath = (env.DATABASE_PATH ?? './data/pharmacy.db').replace(/^file:/, '');
 mkdirSync(dirname(dbPath), { recursive: true });
 
-const rawDb = new BunDatabase(dbPath, { create: true });
+const rawDb = new BetterSqlite3(dbPath);
 
 export const db: Database = {
     query(sql) {
         const statement = rawDb.prepare(sql);
         return {
             all(params) {
-                return bindAndCall(() => statement.all(), (boundParams) => statement.all(boundParams), params);
+                return bindAndCall(() => statement.all(), (boundParams) => statement.all(boundParams as never), params);
             },
             get(params) {
-                return bindAndCall(() => statement.get(), (boundParams) => statement.get(boundParams), params);
+                return bindAndCall(() => statement.get(), (boundParams) => statement.get(boundParams as never), params);
             },
             run(params) {
-                return bindAndCall(() => statement.run(), (boundParams) => statement.run(boundParams), params);
+                return bindAndCall(() => statement.run(), (boundParams) => statement.run(boundParams as never), params);
             }
         };
     },
@@ -63,8 +63,8 @@ export const db: Database = {
     }
 };
 
-db.exec('PRAGMA journal_mode = WAL;');
-db.exec('PRAGMA foreign_keys = ON;');
+rawDb.pragma('journal_mode = WAL');
+rawDb.pragma('foreign_keys = ON');
 db.exec(SCHEMA_SQL);
 seedCategories(db);
 
