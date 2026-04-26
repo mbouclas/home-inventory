@@ -1,0 +1,28 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: home-pharmacy:latest
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    environment:
+      DATABASE_PATH: ${DATABASE_PATH:-./data/pharmacy.db}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+      SMTP_TO: ${SMTP_TO}
+      NOTIFY_EMAIL: ${NOTIFY_EMAIL}
+      CRON_SECRET: ${CRON_SECRET}
+      PORT: ${PORT:-3000}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

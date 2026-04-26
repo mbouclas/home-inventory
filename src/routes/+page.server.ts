@@ -1,6 +1,5 @@
-import { asc, sql, and, lte, isNotNull, gt } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
-import { db, schema } from '$lib/server/db';
+import { db, ITEM_COLUMNS, type Item } from '$lib/server/db';
 import { todayIso, expiryStatus } from '$lib/expiry';
 
 export const load: PageServerLoad = async () => {
@@ -9,26 +8,26 @@ export const load: PageServerLoad = async () => {
 	cutoff.setDate(cutoff.getDate() + 30);
 	const cutoffIso = cutoff.toISOString().slice(0, 10);
 
-	const expiring = await db
-		.select()
-		.from(schema.items)
-		.where(and(isNotNull(schema.items.expiryDate), lte(schema.items.expiryDate, cutoffIso)))
-		.orderBy(asc(schema.items.expiryDate));
+	const expiring = db
+		.query(
+			`SELECT ${ITEM_COLUMNS} FROM items
+			WHERE expiry_date IS NOT NULL AND expiry_date <= $cutoff
+			ORDER BY expiry_date ASC`
+		)
+		.all({ $cutoff: cutoffIso }) as Item[];
 
-	const lowStock = await db
-		.select()
-		.from(schema.items)
-		.where(sql`${schema.items.quantity} <= 1`)
-		.orderBy(asc(schema.items.quantity), asc(schema.items.name));
+	const lowStock = db
+		.query(
+			`SELECT ${ITEM_COLUMNS} FROM items
+			WHERE quantity <= 1
+			ORDER BY quantity ASC, name ASC`
+		)
+		.all() as Item[];
 
-	const [{ count: totalCount = 0 } = { count: 0 }] = await db
-		.select({ count: sql<number>`count(*)` })
-		.from(schema.items);
-
-	const [{ count: inStock = 0 } = { count: 0 }] = await db
-		.select({ count: sql<number>`count(*)` })
-		.from(schema.items)
-		.where(gt(schema.items.quantity, 0));
+	const { c: totalCount } = db.query(`SELECT count(*) AS c FROM items`).get() as { c: number };
+	const { c: inStock } = db
+		.query(`SELECT count(*) AS c FROM items WHERE quantity > 0`)
+		.get() as { c: number };
 
 	const buckets = {
 		expired: expiring.filter((i) => expiryStatus(i.expiryDate) === 'expired'),
@@ -36,5 +35,5 @@ export const load: PageServerLoad = async () => {
 		warning: expiring.filter((i) => expiryStatus(i.expiryDate) === 'warning')
 	};
 
-	return { today, totalCount: Number(totalCount), inStock: Number(inStock), buckets, lowStock };
+	return { today, totalCount, inStock, buckets, lowStock };
 };

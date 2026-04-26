@@ -1,11 +1,9 @@
 import { json, error } from '@sveltejs/kit';
-import { and, gt, lte, isNotNull } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
-import { db, schema } from '$lib/server/db';
+import { db, ITEM_COLUMNS, type Item } from '$lib/server/db';
 import { sendMail } from '$lib/server/mail';
 import { env } from '$env/dynamic/private';
 import { todayIso, daysUntil, expiryStatus } from '$lib/expiry';
-import type { Item } from '$lib/server/db/schema';
 
 function timingSafeEqual(a: string, b: string) {
 	if (a.length !== b.length) return false;
@@ -65,16 +63,12 @@ export const POST: RequestHandler = async ({ request }) => {
 	cutoff.setDate(cutoff.getDate() + 30);
 	const cutoffIso = cutoff.toISOString().slice(0, 10);
 
-	const candidates = await db
-		.select()
-		.from(schema.items)
-		.where(
-			and(
-				isNotNull(schema.items.expiryDate),
-				lte(schema.items.expiryDate, cutoffIso),
-				gt(schema.items.quantity, 0)
-			)
-		);
+	const candidates = db
+		.query(
+			`SELECT ${ITEM_COLUMNS} FROM items
+			WHERE expiry_date IS NOT NULL AND expiry_date <= $cutoff AND quantity > 0`
+		)
+		.all({ $cutoff: cutoffIso }) as Item[];
 
 	const buckets = { expired: [] as Item[], critical: [] as Item[], warning: [] as Item[] };
 	for (const it of candidates) {

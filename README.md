@@ -52,6 +52,18 @@ node build           # adapter-node output
 
 Set `PORT` (default 3000) and the same env vars used in dev. SQLite file lives at `DATABASE_PATH` (default `./data/pharmacy.db`).
 
+## Docker
+
+`docker-compose.yaml` reads the same variables from the root `.env` file and mounts `./data` into the container so the SQLite database stays on disk.
+
+The container image uses Node for compatibility with `better-sqlite3` inside Linux containers; the app itself still builds to the standard adapter-node output.
+
+```sh
+docker compose up --build -d
+```
+
+The app listens on `PORT` from `.env` when set, otherwise `3000`.
+
 ## Scripts
 
 | script | what it does |
