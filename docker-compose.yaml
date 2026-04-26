@@ -24,6 +24,7 @@ services:
       CRON_SECRET: ${CRON_SECRET}
       PORT: ${PORT:-3000}
       ORIGIN: ${ORIGIN}
+      BODY_SIZE_LIMIT: ${BODY_SIZE_LIMIT:-10485760}
     volumes:
       - ./data:/app/data
     restart: unless-stopped
