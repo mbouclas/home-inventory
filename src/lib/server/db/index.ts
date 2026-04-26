@@ -1,11 +1,12 @@
-import BetterSqlite3 from 'better-sqlite3';
+import type { Database as BunSqliteDatabase, SQLQueryBindings } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { createRequire } from 'node:module';
 import { env } from '$env/dynamic/private';
 import { SCHEMA_SQL } from './schema';
 import { seedCategories } from './seed';
 
-type StatementParams = Record<string, unknown> | unknown[];
+type StatementParams = SQLQueryBindings | SQLQueryBindings[];
 
 type PreparedQuery = {
     all(params?: StatementParams): unknown[];
@@ -19,53 +20,62 @@ export type Database = {
     exec(sql: string): void;
 };
 
-function bindAndCall<T>(
-    method: () => T,
-    methodWithParams: (params: StatementParams) => T,
-    params?: StatementParams
-): T {
-    return params === undefined ? method() : methodWithParams(normalizeParams(params));
-}
-
-function normalizeParams(params: StatementParams): StatementParams {
-    if (Array.isArray(params)) return params;
-
-    return Object.fromEntries(
-        Object.entries(params).map(([key, value]) => [key.replace(/^[$:@]/, ''), value])
-    );
+function bindAndCall<T>(method: (...params: SQLQueryBindings[]) => T, params?: StatementParams): T {
+    if (params === undefined) return method();
+    return Array.isArray(params) ? method(...params) : method(params);
 }
 
 const dbPath = (env.DATABASE_PATH ?? './data/pharmacy.db').replace(/^file:/, '');
 mkdirSync(dirname(dbPath), { recursive: true });
 
-const rawDb = new BetterSqlite3(dbPath);
+const runtimeRequire = createRequire(import.meta.url);
+let rawDb: BunSqliteDatabase | undefined;
+let initialized = false;
+
+function getRawDb() {
+    if (!rawDb) {
+        const { Database } = runtimeRequire('bun:sqlite') as typeof import('bun:sqlite');
+        rawDb = new Database(dbPath);
+    }
+
+    if (!initialized) {
+        initialized = true;
+        try {
+            rawDb.exec('PRAGMA journal_mode = WAL');
+            rawDb.exec('PRAGMA foreign_keys = ON');
+            rawDb.exec(SCHEMA_SQL);
+            seedCategories(db);
+        } catch (error) {
+            initialized = false;
+            throw error;
+        }
+    }
+
+    return rawDb;
+}
 
 export const db: Database = {
     query(sql) {
+        const rawDb = getRawDb();
         const statement = rawDb.prepare(sql);
         return {
             all(params) {
-                return bindAndCall(() => statement.all(), (boundParams) => statement.all(boundParams as never), params);
+                return bindAndCall((...boundParams) => statement.all(...(boundParams as never)), params);
             },
             get(params) {
-                return bindAndCall(() => statement.get(), (boundParams) => statement.get(boundParams as never), params);
+                return bindAndCall((...boundParams) => statement.get(...(boundParams as never)), params);
             },
             run(params) {
-                return bindAndCall(() => statement.run(), (boundParams) => statement.run(boundParams as never), params);
+                return bindAndCall((...boundParams) => statement.run(...(boundParams as never)), params);
             }
         };
     },
     transaction(fn) {
-        return rawDb.transaction(fn) as unknown as typeof fn;
+        return getRawDb().transaction(fn) as unknown as typeof fn;
     },
     exec(sql) {
-        rawDb.exec(sql);
+        getRawDb().exec(sql);
     }
 };
-
-rawDb.pragma('journal_mode = WAL');
-rawDb.pragma('foreign_keys = ON');
-db.exec(SCHEMA_SQL);
-seedCategories(db);
 
 export * from './schema';

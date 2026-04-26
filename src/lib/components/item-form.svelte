@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { superForm, type SuperValidated } from "sveltekit-superforms";
 	import { zod4 } from "sveltekit-superforms/adapters";
+	import { fromAction } from 'svelte/attachments';
 	import { itemFormSchema, type ItemFormData } from "$lib/schemas/item";
 	import type { Category } from "$lib/types/taxonomy";
 	import { toast } from "svelte-sonner";
@@ -44,7 +45,7 @@
 	const { form, errors, enhance, submitting, message } = createItemForm();
 </script>
 
-<form method="POST" use:enhance class="grid gap-4">
+<form method="POST" {@attach fromAction(enhance)} class="grid gap-4">
 	{#if photoUrl}
 		<div class="overflow-hidden rounded-xl border bg-muted">
 			<img
