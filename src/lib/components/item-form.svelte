@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { superForm, type SuperValidated } from "sveltekit-superforms";
 	import { zod4 } from "sveltekit-superforms/adapters";
-	import { fromAction } from 'svelte/attachments';
+	import { fromAction } from "svelte/attachments";
 	import { itemFormSchema, type ItemFormData } from "$lib/schemas/item";
 	import type { Category } from "$lib/types/taxonomy";
 	import { toast } from "svelte-sonner";
