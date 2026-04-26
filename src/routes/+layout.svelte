@@ -2,10 +2,13 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import { Toaster } from 'svelte-sonner';
 	import BottomNav from '$lib/components/bottom-nav.svelte';
+	import OfflineStatus from '$lib/components/offline-status.svelte';
 	import Sheet from '$lib/components/ui/sheet.svelte';
 	import Button from '$lib/components/ui/button.svelte';
+	import { inventory } from '$lib/offline/inventory-store.svelte';
 	import { Camera, PencilLine } from '@lucide/svelte';
 
 	let { children } = $props();
@@ -15,11 +18,17 @@
 		addOpen = false;
 		goto(path);
 	}
+
+	onMount(() => {
+		void inventory.init();
+	});
 </script>
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
 </svelte:head>
+
+<OfflineStatus />
 
 <div class="mx-auto min-h-dvh max-w-md pb-24">
 	{@render children()}
@@ -41,4 +50,3 @@
 </Sheet>
 
 <Toaster richColors position="top-center" />
-

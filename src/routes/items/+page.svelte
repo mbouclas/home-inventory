@@ -11,6 +11,7 @@
 	import Button from "$lib/components/ui/button.svelte";
 	import ConfirmDialog from "$lib/components/ui/confirm-dialog.svelte";
 	import ExpiryBadge from "$lib/components/expiry-badge.svelte";
+	import { inventory } from "$lib/offline/inventory-store.svelte";
 	import { cn } from "$lib/utils";
 
 	let { data }: { data: PageData } = $props();
@@ -19,6 +20,7 @@
 	let toDelete = $state<{ id: number; name: string } | null>(null);
 	let confirmOpen = $derived(!!toDelete);
 	let busyIds = new SvelteSet<number>();
+	const items = $derived(inventory.lastSyncedAt ? inventory.filterItems(query) : data.items);
 
 	function onSearchSubmit(e: SubmitEvent) {
 		e.preventDefault();
@@ -31,13 +33,17 @@
 	async function changeQty(id: number, delta: number) {
 		busyIds.add(id);
 		try {
-			const res = await fetch(`/api/items/${id}/qty`, {
-				method: "PATCH",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ delta }),
-			});
-			if (!res.ok) throw new Error(await res.text());
-			await invalidateAll();
+			if (inventory.lastSyncedAt) {
+				await inventory.changeQuantity(id, delta);
+			} else {
+				const res = await fetch(`/api/items/${id}/qty`, {
+					method: "PATCH",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ delta }),
+				});
+				if (!res.ok) throw new Error(await res.text());
+				await invalidateAll();
+			}
 		} catch (e) {
 			toast.error("Could not update quantity");
 		} finally {
@@ -48,13 +54,18 @@
 	async function doDelete() {
 		if (!toDelete) return;
 		const id = toDelete.id;
-		const res = await fetch(`/api/items/${id}`, { method: "DELETE" });
-		if (!res.ok) {
-			toast.error("Delete failed");
-			return;
+		if (inventory.lastSyncedAt) {
+			await inventory.deleteItem(id);
+		} else {
+			const res = await fetch(`/api/items/${id}`, { method: "DELETE" });
+			if (!res.ok) {
+				toast.error("Delete failed");
+				return;
+			}
+			await invalidateAll();
 		}
 		toast.success("Deleted");
-		await invalidateAll();
+		toDelete = null;
 	}
 
 	onMount(() => {
@@ -87,7 +98,7 @@
 </header>
 
 <section class="grid gap-3 p-4">
-	{#if data.items.length === 0}
+	{#if items.length === 0}
 		<div
 			class="grid place-items-center gap-3 rounded-xl border border-dashed py-12 text-center text-muted-foreground"
 		>
@@ -98,7 +109,7 @@
 		</div>
 	{/if}
 
-	{#each data.items as item (item.id)}
+	{#each items as item (item.id)}
 		{@const zero = item.quantity === 0}
 		<Card class={cn("p-3", zero && "opacity-40 grayscale")}>
 			<div class="flex items-start gap-3">
