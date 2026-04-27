@@ -7,7 +7,8 @@ import { build, files, version } from '$service-worker';
 
 const worker = self as unknown as ServiceWorkerGlobalScope;
 const CACHE = `home-pharmacy-${version}`;
-const ASSETS = [...build, ...files];
+const APP_SHELL = '/';
+const ASSETS = [...build, ...files, APP_SHELL];
 
 worker.addEventListener('install', (event) => {
 	event.waitUntil(
@@ -46,6 +47,12 @@ worker.addEventListener('fetch', (event) => {
 			} catch (error) {
 				const cached = await cache.match(event.request);
 				if (cached) return cached;
+
+				if (event.request.mode === 'navigate') {
+					const shell = await cache.match(APP_SHELL);
+					if (shell) return shell;
+				}
+
 				throw error;
 			}
 		})()

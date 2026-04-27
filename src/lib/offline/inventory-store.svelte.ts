@@ -189,6 +189,10 @@ class InventoryStore {
 		return sortItems(this.items.filter((item) => itemIds.has(item.id)));
 	}
 
+	categoryForSlug(slug: string) {
+		return this.categories.find((category) => category.slug === slug) ?? null;
+	}
+
 	async refreshSnapshot() {
 		if (!browser || !navigator.onLine) return;
 		this.syncing = true;

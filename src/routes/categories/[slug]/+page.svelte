@@ -1,22 +1,33 @@
 <script lang="ts">
-	import type { PageData } from './$types';
+	import { page } from '$app/state';
 	import Card from '$lib/components/ui/card.svelte';
 	import ExpiryBadge from '$lib/components/expiry-badge.svelte';
 	import { inventory } from '$lib/offline/inventory-store.svelte';
 	import { ChevronRight, Pill } from '@lucide/svelte';
 
-	let { data }: { data: PageData } = $props();
-	const items = $derived(inventory.lastSyncedAt ? inventory.itemsForCategorySlug(data.category.slug) : data.items);
+	const slug = $derived(page.params.slug ?? '');
+	const category = $derived(inventory.categoryForSlug(slug));
+	const items = $derived(inventory.itemsForCategorySlug(slug));
 </script>
 
 <header class="px-4 pt-6 pb-4">
 	<a href="/categories" class="text-xs font-medium text-muted-foreground hover:text-foreground">Categories</a>
-	<h1 class="mt-1 text-2xl font-semibold">{data.category.name}</h1>
+	<h1 class="mt-1 text-2xl font-semibold">{category?.name ?? 'Category'}</h1>
 	<p class="text-sm text-muted-foreground">{items.length} {items.length === 1 ? 'item' : 'items'}</p>
 </header>
 
 <section class="grid gap-3 p-4 pt-0">
-	{#if items.length === 0}
+	{#if !inventory.ready}
+		<div class="grid place-items-center gap-3 rounded-xl border border-dashed py-12 text-center text-muted-foreground">
+			<Pill class="size-8" />
+			<p class="text-sm">Loading cached items…</p>
+		</div>
+	{:else if !category}
+		<div class="grid place-items-center gap-3 rounded-xl border border-dashed py-12 text-center text-muted-foreground">
+			<Pill class="size-8" />
+			<p class="text-sm">Category not found.</p>
+		</div>
+	{:else if items.length === 0}
 		<div class="grid place-items-center gap-3 rounded-xl border border-dashed py-12 text-center text-muted-foreground">
 			<Pill class="size-8" />
 			<p class="text-sm">No items in this category yet.</p>

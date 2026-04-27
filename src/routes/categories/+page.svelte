@@ -1,11 +1,9 @@
 <script lang="ts">
-	import type { PageData } from './$types';
 	import Card from '$lib/components/ui/card.svelte';
 	import { inventory } from '$lib/offline/inventory-store.svelte';
 	import { ChevronRight, Shapes } from '@lucide/svelte';
 
-	let { data }: { data: PageData } = $props();
-	const categories = $derived(inventory.lastSyncedAt ? inventory.categoryCounts : data.categories);
+	const categories = $derived(inventory.categoryCounts);
 </script>
 
 <header class="px-4 pt-6 pb-4">
@@ -14,7 +12,12 @@
 </header>
 
 <section class="grid gap-3 p-4 pt-0">
-	{#if categories.length === 0}
+	{#if !inventory.ready}
+		<div class="grid place-items-center gap-3 rounded-xl border border-dashed py-12 text-center text-muted-foreground">
+			<Shapes class="size-8" />
+			<p class="text-sm">Loading cached categories…</p>
+		</div>
+	{:else if categories.length === 0}
 		<div class="grid place-items-center gap-3 rounded-xl border border-dashed py-12 text-center text-muted-foreground">
 			<Shapes class="size-8" />
 			<p class="text-sm">No categories yet.</p>

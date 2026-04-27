@@ -1,5 +1,4 @@
 <script lang="ts">
-	import type { PageData } from "./$types";
 	import { goto, invalidateAll } from "$app/navigation";
 	import { page } from "$app/state";
 	import { onMount } from "svelte";
@@ -16,9 +15,7 @@
 	import { inventory } from "$lib/offline/inventory-store.svelte";
 	import { cn } from "$lib/utils";
 
-	let { data }: { data: PageData } = $props();
-
-	let query = $derived(data.q);
+	let query = $derived(page.url.searchParams.get("q")?.trim() ?? "");
 	let toDelete = $state<{ id: number; name: string } | null>(null);
 	let addStockFor = $state<{ id: number; name: string } | null>(null);
 	let addStockOpen = $state(false);
@@ -28,7 +25,7 @@
 	]);
 	let confirmOpen = $derived(!!toDelete);
 	let busyIds = new SvelteSet<number>();
-	const items = $derived(inventory.lastSyncedAt ? inventory.filterItems(query) : data.items);
+	const items = $derived(inventory.filterItems(query));
 
 	function formatLotDate(expiryDate: string | null) {
 		if (!expiryDate) return "unknown expiry";
@@ -173,7 +170,14 @@
 </header>
 
 <section class="grid gap-3 p-4">
-	{#if items.length === 0}
+	{#if !inventory.ready}
+		<div
+			class="grid place-items-center gap-3 rounded-xl border border-dashed py-12 text-center text-muted-foreground"
+		>
+			<Pill class="size-8" />
+			<p class="text-sm">Loading cached items…</p>
+		</div>
+	{:else if items.length === 0}
 		<div
 			class="grid place-items-center gap-3 rounded-xl border border-dashed py-12 text-center text-muted-foreground"
 		>
