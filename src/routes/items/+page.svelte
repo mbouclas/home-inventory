@@ -141,6 +141,8 @@
 	}
 
 	onMount(() => {
+		if (inventory.online && inventory.pendingCount === 0) void inventory.refreshSnapshot();
+
 		const added = page.url.searchParams.get("added");
 		if (added) {
 			toast.success("Item saved");
