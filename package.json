@@ -7,6 +7,7 @@
 		"dev": "bunx --bun vite dev",
 		"build": "bunx --bun vite build",
 		"preview": "bunx --bun vite preview",
+		"migrate:stock-lots": "bun scripts/backfill-item-expiry-lots.ts",
 		"prepare": "bunx --bun svelte-kit sync || echo ''",
 		"check": "bunx --bun svelte-kit sync && bunx --bun svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "bunx --bun svelte-kit sync && bunx --bun svelte-check --tsconfig ./tsconfig.json --watch"
