@@ -4,6 +4,7 @@ import { zod4 } from 'sveltekit-superforms/adapters';
 import type { Actions, PageServerLoad } from './$types';
 import { itemFormSchema } from '$lib/schemas/item';
 import { db, ITEM_COLUMNS, type Item } from '$lib/server/db';
+import { getItemWithLots, replaceItemLots } from '$lib/server/db/lots';
 import {
 	getItemCategoryIds,
 	getItemTagNames,
@@ -15,9 +16,9 @@ import {
 export const load: PageServerLoad = async ({ params }) => {
 	const id = Number(params.id);
 	if (!Number.isFinite(id)) throw error(400, 'bad id');
-	const item = db
+	const item = getItemWithLots(db
 		.query(`SELECT ${ITEM_COLUMNS} FROM items WHERE id = $id`)
-		.get({ $id: id }) as Item | null;
+		.get({ $id: id }) as Omit<Item, 'expiryLots'> | null);
 	if (!item) throw error(404, 'not found');
 
 	const categoryIds = getItemCategoryIds(id);
@@ -33,6 +34,10 @@ export const load: PageServerLoad = async ({ params }) => {
 			expiryDate: item.expiryDate ?? '',
 			barcode: item.barcode ?? '',
 			quantity: item.quantity,
+			expiryLots: item.expiryLots.map((lot) => ({
+				quantity: lot.quantity,
+				expiryDate: lot.expiryDate ?? ''
+			})),
 			photoUrl: item.photoUrl ?? '',
 			photoPublicId: item.photoPublicId ?? '',
 			categoryIds,
@@ -53,15 +58,14 @@ export const actions: Actions = {
 		if (!form.valid) return fail(400, { form });
 
 		const tx = db.transaction(() => {
+			const now = Date.now();
 			db.query(
 				`UPDATE items SET
 					name = $name,
 					dosage = $dosage,
 					description = $description,
 					usage = $usage,
-					expiry_date = $expiryDate,
 					barcode = $barcode,
-					quantity = $quantity,
 					photo_url = $photoUrl,
 					photo_public_id = $photoPublicId,
 					updated_at = $updatedAt
@@ -71,15 +75,14 @@ export const actions: Actions = {
 				$dosage: form.data.dosage ?? null,
 				$description: form.data.description ?? null,
 				$usage: form.data.usage ?? null,
-				$expiryDate: form.data.expiryDate ?? null,
 				$barcode: form.data.barcode ?? null,
-				$quantity: form.data.quantity,
 				$photoUrl: form.data.photoUrl ?? null,
 				$photoPublicId: form.data.photoPublicId ?? null,
-				$updatedAt: Date.now(),
+				$updatedAt: now,
 				$id: id
 			});
 
+			replaceItemLots(id, form.data.expiryLots, now);
 			setItemCategories(id, form.data.categoryIds);
 			setItemTags(id, form.data.tags);
 		});

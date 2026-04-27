@@ -3,7 +3,7 @@ read @/AGENTS.md for instructions
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **home-inventory** (258 symbols, 370 relationships, 11 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **home-inventory** (455 symbols, 830 relationships, 35 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -41,5 +41,10 @@ This project is indexed by GitNexus as **home-inventory** (258 symbols, 370 rela
 | Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
 | Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+| Work in the Db area (27 symbols) | `.claude/skills/generated/db/SKILL.md` |
+| Work in the Offline area (25 symbols) | `.claude/skills/generated/offline/SKILL.md` |
+| Work in the Check-expiry area (15 symbols) | `.claude/skills/generated/check-expiry/SKILL.md` |
+| Work in the Ai area (8 symbols) | `.claude/skills/generated/ai/SKILL.md` |
+| Work in the Server area (5 symbols) | `.claude/skills/generated/server/SKILL.md` |
 
 <!-- gitnexus:end -->

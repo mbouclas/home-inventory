@@ -1,6 +1,6 @@
 import { browser } from '$app/environment';
 import { expiryStatus, todayIso } from '$lib/expiry';
-import type { InventoryItem, InventorySnapshot, OfflineOperation, SyncOperationsResponse } from '$lib/types/inventory';
+import type { InventoryItem, InventorySnapshot, ItemExpiryLot, OfflineOperation, SyncOperationsResponse } from '$lib/types/inventory';
 import { addOperation, deleteOperations, readOperations, readSnapshot, writeSnapshot } from './db';
 
 function sortItems(items: InventoryItem[]) {
@@ -15,6 +15,29 @@ function sortItems(items: InventoryItem[]) {
 function operationId() {
 	const random = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
 	return `${Date.now()}-${random}`;
+}
+
+function nextExpiry(lots: ItemExpiryLot[]) {
+	return lots
+		.map((lot) => lot.expiryDate)
+		.filter((expiry): expiry is string => expiry !== null)
+		.sort()[0] ?? null;
+}
+
+function totalQuantity(lots: ItemExpiryLot[]) {
+	return lots.reduce((sum, lot) => sum + lot.quantity, 0);
+}
+
+function sortLots(lots: ItemExpiryLot[]) {
+	return [...lots].sort((a, b) => {
+		const expiry = (a.expiryDate ?? '9999-99-99').localeCompare(b.expiryDate ?? '9999-99-99');
+		if (expiry !== 0) return expiry;
+		return a.id - b.id;
+	});
+}
+
+function withStock(item: InventoryItem, lots: ItemExpiryLot[]): InventoryItem {
+	return { ...item, expiryLots: sortLots(lots), quantity: totalQuantity(lots), expiryDate: nextExpiry(lots) };
 }
 
 class InventoryStore {
@@ -35,13 +58,33 @@ class InventoryStore {
 		return sortItems(this.items);
 	}
 
+	get categoryCounts() {
+		return this.categories
+			.map((category) => ({
+				...category,
+				itemCount: this.itemCategories.filter((link) => link.categoryId === category.id).length
+			}))
+			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	get topCategories() {
+		return this.categoryCounts
+			.filter((category) => category.itemCount > 0)
+			.sort((a, b) => b.itemCount - a.itemCount || a.name.localeCompare(b.name))
+			.slice(0, 5);
+	}
+
 	get dashboard() {
 		const today = todayIso();
 		const cutoff = new Date();
 		cutoff.setDate(cutoff.getDate() + 30);
 		const cutoffIso = cutoff.toISOString().slice(0, 10);
 		const expiring = this.items
-			.filter((item) => item.expiryDate !== null && item.expiryDate <= cutoffIso)
+			.flatMap((item) =>
+				item.expiryLots
+					.filter((lot) => lot.expiryDate !== null && lot.expiryDate <= cutoffIso)
+					.map((lot) => ({ ...item, quantity: lot.quantity, expiryDate: lot.expiryDate, expiryLots: [lot] }))
+			)
 			.sort((a, b) => (a.expiryDate ?? '').localeCompare(b.expiryDate ?? ''));
 		const lowStock = sortItems(this.items.filter((item) => item.quantity <= 1));
 
@@ -49,6 +92,7 @@ class InventoryStore {
 			today,
 			totalCount: this.items.length,
 			inStock: this.items.filter((item) => item.quantity > 0).length,
+			topCategories: this.topCategories,
 			buckets: {
 				expired: expiring.filter((item) => expiryStatus(item.expiryDate) === 'expired'),
 				critical: expiring.filter((item) => expiryStatus(item.expiryDate) === 'critical'),
@@ -94,6 +138,17 @@ class InventoryStore {
 		);
 	}
 
+	itemsForCategorySlug(slug: string) {
+		const category = this.categories.find((item) => item.slug === slug);
+		if (!category) return [];
+		const itemIds = new Set(
+			this.itemCategories
+				.filter((link) => link.categoryId === category.id)
+				.map((link) => link.itemId)
+		);
+		return sortItems(this.items.filter((item) => itemIds.has(item.id)));
+	}
+
 	async refreshSnapshot() {
 		if (!browser || !navigator.onLine) return;
 		this.syncing = true;
@@ -111,19 +166,55 @@ class InventoryStore {
 		}
 	}
 
-	async changeQuantity(itemId: number, delta: number) {
+	async addStock(itemId: number, lots: Array<{ quantity: number; expiryDate: string | null }>) {
 		const now = Date.now();
 		const current = this.items.find((item) => item.id === itemId);
 		if (!current) return;
+		const newLots = lots.map((lot, index) => ({
+			id: -now - index,
+			itemId,
+			expiryDate: lot.expiryDate || null,
+			quantity: lot.quantity,
+			createdAt: now,
+			updatedAt: now
+		}));
 		this.items = this.items.map((item) =>
 			item.id === itemId
-				? { ...item, quantity: Math.max(0, item.quantity + delta), updatedAt: now }
+				? withStock({ ...item, updatedAt: now }, [...item.expiryLots, ...newLots])
 				: item
 		);
 
-		await this.queueOperation({ id: operationId(), type: 'changeQuantity', itemId, delta, createdAt: now });
+		await this.queueOperation({ id: operationId(), type: 'addStock', itemId, lots, createdAt: now });
 		await this.persistCurrentSnapshot();
 		await this.syncPending();
+	}
+
+	async consumeStock(itemId: number, quantity: number) {
+		const now = Date.now();
+		const current = this.items.find((item) => item.id === itemId);
+		if (!current || current.quantity < quantity) return;
+
+		let remaining = quantity;
+		const lots = sortLots(current.expiryLots)
+			.map((lot) => {
+				if (remaining <= 0) return lot;
+				const used = Math.min(lot.quantity, remaining);
+				remaining -= used;
+				return { ...lot, quantity: lot.quantity - used, updatedAt: now };
+			})
+			.filter((lot) => lot.quantity > 0);
+
+		this.items = this.items.map((item) =>
+			item.id === itemId ? withStock({ ...item, updatedAt: now }, lots) : item
+		);
+
+		await this.queueOperation({ id: operationId(), type: 'consumeStock', itemId, quantity, createdAt: now });
+		await this.persistCurrentSnapshot();
+		await this.syncPending();
+	}
+
+	async changeQuantity(itemId: number, delta: number) {
+		if (delta < 0) await this.consumeStock(itemId, Math.abs(delta));
 	}
 
 	async deleteItem(itemId: number) {
@@ -135,7 +226,7 @@ class InventoryStore {
 	}
 
 	private applySnapshot(snapshot: InventorySnapshot) {
-		this.items = snapshot.items;
+		this.items = snapshot.items.map((item) => ({ ...item, expiryLots: item.expiryLots ?? [] }));
 		this.categories = snapshot.categories;
 		this.tags = snapshot.tags;
 		this.itemCategories = snapshot.itemCategories;

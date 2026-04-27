@@ -9,8 +9,18 @@ export type InventoryItem = {
 	usage: string | null;
 	expiryDate: string | null;
 	quantity: number;
+	expiryLots: ItemExpiryLot[];
 	photoUrl: string | null;
 	photoPublicId: string | null;
+	createdAt: number;
+	updatedAt: number;
+};
+
+export type ItemExpiryLot = {
+	id: number;
+	itemId: number;
+	expiryDate: string | null;
+	quantity: number;
 	createdAt: number;
 	updatedAt: number;
 };
@@ -37,9 +47,16 @@ export type InventorySnapshot = {
 export type OfflineOperation =
 	| {
 			id: string;
-			type: 'changeQuantity';
+			type: 'addStock';
 			itemId: number;
-			delta: number;
+			lots: Array<{ quantity: number; expiryDate: string | null }>;
+			createdAt: number;
+	  }
+	| {
+			id: string;
+			type: 'consumeStock';
+			itemId: number;
+			quantity: number;
 			createdAt: number;
 	  }
 	| {

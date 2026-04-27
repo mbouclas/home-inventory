@@ -43,6 +43,58 @@
 	}
 
 	const { form, errors, enhance, submitting, message } = createItemForm();
+	let splitLots = $state(false);
+	let splitLotsInitialized = $state(false);
+
+	$effect(() => {
+		if (splitLotsInitialized) return;
+		splitLots = (data.data.expiryLots?.length ?? 0) > 1;
+		splitLotsInitialized = true;
+	});
+
+	function lotTotal() {
+		return ($form.expiryLots ?? []).reduce(
+			(sum, lot) => sum + (Number(lot.quantity) || 0),
+			0,
+		);
+	}
+
+	function syncBulkLot() {
+		if (splitLots) return;
+		const quantity = Number($form.quantity) || 0;
+		$form.expiryLots = quantity > 0 ? [{ quantity, expiryDate: $form.expiryDate }] : [];
+	}
+
+	function enableSplitLots() {
+		splitLots = true;
+		if (($form.expiryLots ?? []).length === 0 && Number($form.quantity) > 0) {
+			$form.expiryLots = [
+				{ quantity: Number($form.quantity), expiryDate: $form.expiryDate },
+			];
+		}
+	}
+
+	function useBulkLot() {
+		splitLots = false;
+		const firstDate = $form.expiryLots?.[0]?.expiryDate ?? $form.expiryDate;
+		$form.expiryDate = firstDate;
+		syncBulkLot();
+	}
+
+	function addLot() {
+		$form.expiryLots = [...($form.expiryLots ?? []), { quantity: 1, expiryDate: "" }];
+		$form.quantity = lotTotal();
+	}
+
+	function removeLot(index: number) {
+		$form.expiryLots = ($form.expiryLots ?? []).filter((_, i) => i !== index);
+		$form.quantity = lotTotal();
+	}
+
+	function syncSplitQuantity() {
+		$form.quantity = lotTotal();
+		$form.expiryDate = $form.expiryLots?.[0]?.expiryDate;
+	}
 </script>
 
 <form method="POST" {@attach fromAction(enhance)} class="grid gap-4">
@@ -64,7 +116,7 @@
 			</p>{/if}
 	</div>
 
-	<div class="grid grid-cols-2 gap-3">
+	<div class="grid gap-3">
 		<div class="grid gap-1.5">
 			<Label for="dosage">Dosage</Label>
 			<Input
@@ -74,29 +126,102 @@
 				bind:value={$form.dosage}
 			/>
 		</div>
-		<div class="grid gap-1.5">
-			<Label for="quantity">Quantity</Label>
-			<Input
-				id="quantity"
-				name="quantity"
-				type="number"
-				min="0"
-				inputmode="numeric"
-				bind:value={$form.quantity}
-			/>
-		</div>
 	</div>
 
-	<div class="grid gap-1.5">
-		<Label for="expiryDate">Expiry date</Label>
-		<Input
-			id="expiryDate"
-			name="expiryDate"
-			type="date"
-			bind:value={$form.expiryDate}
-		/>
-		{#if $errors.expiryDate}<p class="text-xs text-destructive">
-				{$errors.expiryDate}
+	<div class="grid gap-3 rounded-xl border p-3">
+		<div class="flex items-center justify-between gap-2">
+			<div>
+				<Label>Stock and expiry</Label>
+				<p class="text-xs text-muted-foreground">
+					Track quantity by expiry date.
+				</p>
+			</div>
+			<div class="flex rounded-lg border p-0.5">
+				<Button
+					type="button"
+					size="sm"
+					variant={splitLots ? "ghost" : "secondary"}
+					onclick={useBulkLot}
+				>
+					Bulk
+				</Button>
+				<Button
+					type="button"
+					size="sm"
+					variant={splitLots ? "secondary" : "ghost"}
+					onclick={enableSplitLots}
+				>
+					Split
+				</Button>
+			</div>
+		</div>
+
+		{#if splitLots}
+			<div class="grid gap-2">
+				{#each $form.expiryLots as lot, index}
+					<div class="grid grid-cols-[5rem_1fr_auto] items-end gap-2">
+						<div class="grid gap-1.5">
+							<Label for={`lot-quantity-${index}`}>Qty</Label>
+							<Input
+								id={`lot-quantity-${index}`}
+								type="number"
+								min="1"
+								inputmode="numeric"
+								bind:value={lot.quantity}
+								onchange={syncSplitQuantity}
+							/>
+						</div>
+						<div class="grid gap-1.5">
+							<Label for={`lot-expiry-${index}`}>Expiry date</Label>
+							<Input
+								id={`lot-expiry-${index}`}
+								type="date"
+								bind:value={lot.expiryDate}
+								onchange={syncSplitQuantity}
+							/>
+						</div>
+						<Button
+							type="button"
+							variant="ghost"
+							class="mb-0.5"
+							disabled={$form.expiryLots.length === 1}
+							onclick={() => removeLot(index)}
+						>
+							Remove
+						</Button>
+					</div>
+				{/each}
+			</div>
+			<Button type="button" variant="outline" onclick={addLot}>Add another date</Button>
+		{:else}
+			<div class="grid grid-cols-2 gap-3">
+				<div class="grid gap-1.5">
+					<Label for="quantity">Quantity</Label>
+					<Input
+						id="quantity"
+						name="quantity"
+						type="number"
+						min="0"
+						inputmode="numeric"
+						bind:value={$form.quantity}
+						onchange={syncBulkLot}
+					/>
+				</div>
+				<div class="grid gap-1.5">
+					<Label for="expiryDate">Expiry date</Label>
+					<Input
+						id="expiryDate"
+						name="expiryDate"
+						type="date"
+						bind:value={$form.expiryDate}
+						onchange={syncBulkLot}
+					/>
+				</div>
+			</div>
+		{/if}
+
+		{#if $errors.expiryLots}<p class="text-xs text-destructive">
+				{$errors.expiryLots}
 			</p>{/if}
 	</div>
 

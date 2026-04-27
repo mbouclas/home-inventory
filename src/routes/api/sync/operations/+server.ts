@@ -4,14 +4,22 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { deletePhoto } from '$lib/server/cloudinary';
 import { getInventorySnapshot } from '$lib/server/db/snapshot';
+import { addItemLots, consumeItemQuantity } from '$lib/server/db/lots';
 import type { SyncOperationResult } from '$lib/types/inventory';
 
 const Operation = z.discriminatedUnion('type', [
 	z.object({
 		id: z.string().min(1),
-		type: z.literal('changeQuantity'),
+		type: z.literal('addStock'),
 		itemId: z.number().int().positive(),
-		delta: z.number().int().min(-1000).max(1000),
+		lots: z.array(z.object({ quantity: z.number().int().min(1).max(1000), expiryDate: z.string().nullable() })).min(1).max(100),
+		createdAt: z.number().int()
+	}),
+	z.object({
+		id: z.string().min(1),
+		type: z.literal('consumeStock'),
+		itemId: z.number().int().positive(),
+		quantity: z.number().int().min(1).max(1000),
 		createdAt: z.number().int()
 	}),
 	z.object({
@@ -33,10 +41,14 @@ export const POST: RequestHandler = async ({ request }) => {
 	const results: SyncOperationResult[] = [];
 	for (const operation of parsed.data.operations) {
 		try {
-			if (operation.type === 'changeQuantity') {
-				db.query(
-					`UPDATE items SET quantity = max(0, quantity + $delta), updated_at = $updatedAt WHERE id = $id`
-				).run({ $delta: operation.delta, $updatedAt: operation.createdAt, $id: operation.itemId });
+			if (operation.type === 'addStock') {
+				addItemLots(operation.itemId, operation.lots, operation.createdAt);
+				results.push({ id: operation.id, ok: true });
+				continue;
+			}
+
+			if (operation.type === 'consumeStock') {
+				consumeItemQuantity(operation.itemId, operation.quantity, operation.createdAt);
 				results.push({ id: operation.id, ok: true });
 				continue;
 			}

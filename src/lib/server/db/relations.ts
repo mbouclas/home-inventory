@@ -1,11 +1,84 @@
 import { db } from './index';
-import { TAXONOMY_COLUMNS, type Category, type Tag } from './schema';
+import { ITEM_COLUMNS, TAXONOMY_COLUMNS, type Category, type Item, type Tag } from './schema';
+import { attachLots } from './lots';
 import { slugify } from '$lib/utils';
+
+export type CategoryWithItemCount = Category & { itemCount: number };
 
 export function listCategories(): Category[] {
 	return db
 		.query(`SELECT ${TAXONOMY_COLUMNS} FROM categories ORDER BY name COLLATE NOCASE ASC`)
 		.all() as Category[];
+}
+
+export function listCategoriesWithItemCount(): CategoryWithItemCount[] {
+	return db
+		.query(
+			`SELECT
+				categories.id,
+				categories.name,
+				categories.slug,
+				categories.created_at AS createdAt,
+				categories.updated_at AS updatedAt,
+				COUNT(item_categories.item_id) AS itemCount
+			FROM categories
+			LEFT JOIN item_categories ON item_categories.category_id = categories.id
+			GROUP BY categories.id
+			ORDER BY categories.name COLLATE NOCASE ASC`
+		)
+		.all() as CategoryWithItemCount[];
+}
+
+export function listTopCategories(limit = 5): CategoryWithItemCount[] {
+	return db
+		.query(
+			`SELECT
+				categories.id,
+				categories.name,
+				categories.slug,
+				categories.created_at AS createdAt,
+				categories.updated_at AS updatedAt,
+				COUNT(item_categories.item_id) AS itemCount
+			FROM categories
+			JOIN item_categories ON item_categories.category_id = categories.id
+			GROUP BY categories.id
+			ORDER BY itemCount DESC, categories.name COLLATE NOCASE ASC
+			LIMIT $limit`
+		)
+		.all({ $limit: limit }) as CategoryWithItemCount[];
+}
+
+export function getCategoryBySlug(slug: string): CategoryWithItemCount | null {
+	return db
+		.query(
+			`SELECT
+				categories.id,
+				categories.name,
+				categories.slug,
+				categories.created_at AS createdAt,
+				categories.updated_at AS updatedAt,
+				COUNT(item_categories.item_id) AS itemCount
+			FROM categories
+			LEFT JOIN item_categories ON item_categories.category_id = categories.id
+			WHERE categories.slug = $slug
+			GROUP BY categories.id`
+		)
+		.get({ $slug: slug }) as CategoryWithItemCount | null;
+}
+
+export function listItemsByCategorySlug(slug: string): Item[] {
+	return attachLots(
+		db
+			.query(
+				`SELECT ${ITEM_COLUMNS}
+				FROM items
+				JOIN item_categories ON item_categories.item_id = items.id
+				JOIN categories ON categories.id = item_categories.category_id
+				WHERE categories.slug = $slug
+				ORDER BY quantity ASC, expiryDate ASC, items.name COLLATE NOCASE ASC`
+			)
+			.all({ $slug: slug }) as Omit<Item, 'expiryLots'>[]
+	);
 }
 
 export function createCategory(rawName: string): Category | null {

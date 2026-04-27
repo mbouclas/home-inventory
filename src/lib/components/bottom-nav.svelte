@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { LayoutDashboard, Pill, Plus } from '@lucide/svelte';
+	import { LayoutDashboard, Pill, Plus, Shapes } from '@lucide/svelte';
 	import { cn } from '$lib/utils';
 
 	type Props = { onAdd: () => void };
@@ -8,7 +8,8 @@
 
 	const tabs = [
 		{ href: '/', label: 'Dashboard', icon: LayoutDashboard, match: (p: string) => p === '/' },
-		{ href: '/items', label: 'Items', icon: Pill, match: (p: string) => p.startsWith('/items') }
+		{ href: '/items', label: 'Items', icon: Pill, match: (p: string) => p.startsWith('/items') },
+		{ href: '/categories', label: 'Categories', icon: Shapes, match: (p: string) => p.startsWith('/categories') }
 	];
 </script>
 
@@ -16,7 +17,7 @@
 	class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
 	style="padding-bottom: env(safe-area-inset-bottom)"
 >
-	<div class="mx-auto grid max-w-md grid-cols-3 px-2 pt-1">
+	<div class="mx-auto grid max-w-md grid-cols-4 px-2 pt-1">
 		{#each tabs as tab (tab.href)}
 			{@const active = tab.match(page.url.pathname)}
 			<a

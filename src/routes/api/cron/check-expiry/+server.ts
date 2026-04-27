@@ -1,9 +1,11 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { db, ITEM_COLUMNS, type Item } from '$lib/server/db';
+import { db, type Item } from '$lib/server/db';
 import { sendMail } from '$lib/server/mail';
 import { env } from '$env/dynamic/private';
 import { todayIso, daysUntil, expiryStatus } from '$lib/expiry';
+
+type ExpiringRow = Omit<Item, 'expiryLots'>;
 
 function timingSafeEqual(a: string, b: string) {
 	if (a.length !== b.length) return false;
@@ -12,8 +14,8 @@ function timingSafeEqual(a: string, b: string) {
 	return r === 0;
 }
 
-function renderEmail(buckets: { expired: Item[]; critical: Item[]; warning: Item[] }) {
-	const row = (it: Item) => {
+function renderEmail(buckets: { expired: ExpiringRow[]; critical: ExpiringRow[]; warning: ExpiringRow[] }) {
+	const row = (it: ExpiringRow) => {
 		const d = daysUntil(it.expiryDate);
 		const when =
 			d === null ? '—' : d < 0 ? `<b style="color:#c00">expired ${-d}d ago</b>` : `in ${d} day${d === 1 ? '' : 's'}`;
@@ -25,7 +27,7 @@ function renderEmail(buckets: { expired: Item[]; critical: Item[]; warning: Item
 			<td style="padding:6px 12px;border-bottom:1px solid #eee">${when}</td>
 		</tr>`;
 	};
-	const section = (label: string, items: Item[], color: string) => {
+	const section = (label: string, items: ExpiringRow[], color: string) => {
 		if (!items.length) return '';
 		return `<h3 style="margin:24px 0 8px;color:${color}">${label} (${items.length})</h3>
 		<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:14px">
@@ -65,12 +67,27 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const candidates = db
 		.query(
-			`SELECT ${ITEM_COLUMNS} FROM items
-			WHERE expiry_date IS NOT NULL AND expiry_date <= $cutoff AND quantity > 0`
+			`SELECT
+				items.id,
+				items.barcode,
+				items.name,
+				items.dosage,
+				items.description,
+				items.usage,
+				l.expiry_date AS expiryDate,
+				l.quantity,
+				items.photo_url AS photoUrl,
+				items.photo_public_id AS photoPublicId,
+				items.created_at AS createdAt,
+				items.updated_at AS updatedAt
+			FROM item_expiry_lots l
+			JOIN items ON items.id = l.item_id
+			WHERE l.expiry_date IS NOT NULL AND l.expiry_date <= $cutoff AND l.quantity > 0
+			ORDER BY l.expiry_date ASC, items.name ASC`
 		)
-		.all({ $cutoff: cutoffIso }) as Item[];
+		.all({ $cutoff: cutoffIso }) as ExpiringRow[];
 
-	const buckets = { expired: [] as Item[], critical: [] as Item[], warning: [] as Item[] };
+	const buckets = { expired: [] as ExpiringRow[], critical: [] as ExpiringRow[], warning: [] as ExpiringRow[] };
 	for (const it of candidates) {
 		const s = expiryStatus(it.expiryDate);
 		if (s === 'expired') buckets.expired.push(it);

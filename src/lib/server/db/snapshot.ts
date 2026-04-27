@@ -1,10 +1,11 @@
 import { db, ITEM_COLUMNS, TAXONOMY_COLUMNS, type Category, type Item, type Tag } from './index';
+import { attachLots } from './lots';
 import type { InventorySnapshot, ItemCategoryLink, ItemTagLink } from '$lib/types/inventory';
 
 export function getInventorySnapshot(): InventorySnapshot {
-	const items = db
-		.query(`SELECT ${ITEM_COLUMNS} FROM items ORDER BY quantity ASC, expiry_date ASC, updated_at DESC`)
-		.all() as Item[];
+	const items = attachLots(db
+		.query(`SELECT ${ITEM_COLUMNS} FROM items ORDER BY quantity ASC, expiryDate ASC, updated_at DESC`)
+		.all() as Omit<Item, 'expiryLots'>[]);
 	const categories = db
 		.query(`SELECT ${TAXONOMY_COLUMNS} FROM categories ORDER BY name COLLATE NOCASE ASC`)
 		.all() as Category[];

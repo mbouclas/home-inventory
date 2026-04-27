@@ -85,6 +85,6 @@ The app listens on `PORT` from `.env` when set, otherwise `3000`.
 | `/items/import` | Photo capture → AI extract → review |
 | `/items/[id]/edit` | Edit form |
 | `POST /api/extract` | Multipart photo → JSON of extracted fields |
-| `PATCH /api/items/[id]/qty` | `{ delta }` or `{ quantity }` |
+| `PATCH /api/items/[id]/qty` | `{ lots }` to add stock, `{ quantityToConsume }` or negative `{ delta }` to consume FEFO |
 | `DELETE /api/items/[id]` | Delete + remove Cloudinary asset |
 | `POST /api/cron/check-expiry` | Bearer-protected daily digest |

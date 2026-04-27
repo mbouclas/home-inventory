@@ -4,7 +4,7 @@
 	import Card from '$lib/components/ui/card.svelte';
 	import ExpiryBadge from '$lib/components/expiry-badge.svelte';
 	import { inventory } from '$lib/offline/inventory-store.svelte';
-	import { AlertTriangle, CalendarClock, PackageOpen, Pill, ChevronRight } from '@lucide/svelte';
+	import { AlertTriangle, CalendarClock, PackageOpen, Pill, ChevronRight, Shapes } from '@lucide/svelte';
 
 	let { data }: { data: PageData } = $props();
 	const dashboard = $derived(inventory.lastSyncedAt ? inventory.dashboard : data);
@@ -40,6 +40,31 @@
 	</Card>
 </section>
 
+{#if dashboard.topCategories.length > 0}
+	<section class="px-4 pt-4">
+		<div class="mb-2 flex items-center justify-between gap-3">
+			<h2 class="flex items-center gap-2 text-sm font-semibold">
+				<Shapes class="size-4 text-muted-foreground" />
+				Top categories
+			</h2>
+			<a href="/categories" class="text-xs font-medium text-muted-foreground hover:text-foreground">View all</a>
+		</div>
+		<Card class="divide-y divide-border overflow-hidden p-0">
+			{#each dashboard.topCategories as category (category.id)}
+				<a href={`/categories/${category.slug}`} class="flex items-center justify-between gap-3 p-3 hover:bg-muted/50">
+					<div class="min-w-0">
+						<p class="truncate font-medium">{category.name}</p>
+						<p class="text-xs text-muted-foreground">
+							{category.itemCount} {category.itemCount === 1 ? 'item' : 'items'}
+						</p>
+					</div>
+					<ChevronRight class="size-4 shrink-0 text-muted-foreground" />
+				</a>
+			{/each}
+		</Card>
+	</section>
+{/if}
+
 {#snippet bucketSection(title: string, items: InventoryItem[], danger: boolean)}
 	{#if items.length > 0}
 		<section class="px-4 pt-4">
@@ -49,7 +74,7 @@
 				<span class="text-muted-foreground">· {items.length}</span>
 			</h2>
 			<div class="grid gap-2">
-				{#each items as it (it.id)}
+				{#each items as it (`${it.id}-${it.expiryDate ?? 'unknown'}-${it.quantity}`)}
 					<a href={`/items/${it.id}/edit`} class="block">
 						<Card class="flex items-center justify-between gap-3 p-3">
 							<div class="min-w-0">

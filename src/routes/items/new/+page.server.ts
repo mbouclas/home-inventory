@@ -4,6 +4,7 @@ import { zod4 } from 'sveltekit-superforms/adapters';
 import type { Actions, PageServerLoad } from './$types';
 import { itemFormSchema } from '$lib/schemas/item';
 import { db } from '$lib/server/db';
+import { replaceItemLots } from '$lib/server/db/lots';
 import {
 	listCategories,
 	setItemCategories,
@@ -31,6 +32,7 @@ export const load: PageServerLoad = async ({ url }) => {
 		: [];
 
 	const aiSuggested = url.searchParams.get('ai') === '1';
+	const initialQuantity = Number(url.searchParams.get('quantity') ?? 1);
 
 	const initial = {
 		name: url.searchParams.get('name') ?? '',
@@ -39,7 +41,13 @@ export const load: PageServerLoad = async ({ url }) => {
 		usage: url.searchParams.get('usage') ?? '',
 		expiryDate: url.searchParams.get('expiryDate') ?? '',
 		barcode: url.searchParams.get('barcode') ?? '',
-		quantity: Number(url.searchParams.get('quantity') ?? 1),
+		quantity: initialQuantity,
+		expiryLots: initialQuantity > 0 ? [
+			{
+				quantity: initialQuantity,
+				expiryDate: url.searchParams.get('expiryDate') ?? ''
+			}
+		] : [],
 		photoUrl: url.searchParams.get('photoUrl') ?? '',
 		photoPublicId: url.searchParams.get('photoPublicId') ?? '',
 		categoryIds,
@@ -55,14 +63,15 @@ export const actions: Actions = {
 		if (!form.valid) return fail(400, { form });
 
 		const tx = db.transaction(() => {
+			const now = Date.now();
 			const created = db
 				.query(
 					`INSERT INTO items (
-						name, dosage, description, usage, expiry_date, barcode,
-						quantity, photo_url, photo_public_id, updated_at
+						name, dosage, description, usage, barcode,
+						photo_url, photo_public_id, updated_at
 					) VALUES (
-						$name, $dosage, $description, $usage, $expiryDate, $barcode,
-						$quantity, $photoUrl, $photoPublicId, $updatedAt
+						$name, $dosage, $description, $usage, $barcode,
+						$photoUrl, $photoPublicId, $updatedAt
 					) RETURNING id`
 				)
 				.get({
@@ -70,14 +79,13 @@ export const actions: Actions = {
 					$dosage: form.data.dosage ?? null,
 					$description: form.data.description ?? null,
 					$usage: form.data.usage ?? null,
-					$expiryDate: form.data.expiryDate ?? null,
 					$barcode: form.data.barcode ?? null,
-					$quantity: form.data.quantity,
 					$photoUrl: form.data.photoUrl ?? null,
 					$photoPublicId: form.data.photoPublicId ?? null,
-					$updatedAt: Date.now()
+					$updatedAt: now
 				}) as { id: number };
 
+			replaceItemLots(created.id, form.data.expiryLots, now);
 			setItemCategories(created.id, form.data.categoryIds);
 			setItemTags(created.id, form.data.tags);
 			return created;

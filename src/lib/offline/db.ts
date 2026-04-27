@@ -1,7 +1,7 @@
 import type { InventorySnapshot, OfflineOperation } from '$lib/types/inventory';
 
 const DB_NAME = 'home-pharmacy-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 type StoreName =
 	| 'items'
