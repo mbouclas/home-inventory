@@ -12,6 +12,7 @@ import {
 	setItemCategories,
 	setItemTags
 } from '$lib/server/db/relations';
+import { deletePhoto } from '$lib/server/cloudinary';
 
 export const load: PageServerLoad = async ({ params }) => {
 	const id = Number(params.id);
@@ -57,6 +58,10 @@ export const actions: Actions = {
 		const form = await superValidate(request, zod4(itemFormSchema));
 		if (!form.valid) return fail(400, { form });
 
+		const existing = db
+			.query(`SELECT photo_public_id AS photoPublicId FROM items WHERE id = $id`)
+			.get({ $id: id }) as { photoPublicId: string | null } | null;
+
 		const tx = db.transaction(() => {
 			const now = Date.now();
 			db.query(
@@ -87,6 +92,17 @@ export const actions: Actions = {
 			setItemTags(id, form.data.tags);
 		});
 		tx();
+
+		if (
+			existing?.photoPublicId &&
+			existing.photoPublicId !== form.data.photoPublicId
+		) {
+			try {
+				await deletePhoto(existing.photoPublicId);
+			} catch (error) {
+				console.warn('cloudinary delete failed', error);
+			}
+		}
 
 		throw redirect(303, '/items');
 	}

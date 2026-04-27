@@ -11,7 +11,7 @@
 	import Button from "./ui/button.svelte";
 	import TagsInput from "./tags-input.svelte";
 	import CategoriesPicker from "./categories-picker.svelte";
-	import { Sparkles } from "@lucide/svelte";
+	import { Camera, Loader2, Sparkles } from "@lucide/svelte";
 
 	type Props = {
 		data: SuperValidated<ItemFormData>;
@@ -45,6 +45,11 @@
 	const { form, errors, enhance, submitting, message } = createItemForm();
 	let splitLots = $state(false);
 	let splitLotsInitialized = $state(false);
+	let photoInput: HTMLInputElement;
+	let localPhotoPreview = $state<string | null>(null);
+	let uploadingPhoto = $state(false);
+	let photoError = $state<string | null>(null);
+	let displayPhotoUrl = $derived(localPhotoPreview ?? $form.photoUrl ?? photoUrl ?? null);
 
 	$effect(() => {
 		if (splitLotsInitialized) return;
@@ -95,18 +100,88 @@
 		$form.quantity = lotTotal();
 		$form.expiryDate = $form.expiryLots?.[0]?.expiryDate;
 	}
+
+	function pickPhoto() {
+		photoInput?.click();
+	}
+
+	async function uploadSelectedPhoto(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+
+		if (localPhotoPreview) URL.revokeObjectURL(localPhotoPreview);
+		localPhotoPreview = URL.createObjectURL(file);
+		uploadingPhoto = true;
+		photoError = null;
+
+		try {
+			const body = new FormData();
+			body.append("photo", file);
+			const response = await fetch("/api/photos", { method: "POST", body });
+			if (!response.ok) {
+				const text = await response.text().catch(() => "");
+				throw new Error(text || `Upload failed (${response.status})`);
+			}
+			const uploaded = (await response.json()) as {
+				photoUrl: string;
+				photoPublicId: string;
+			};
+			$form.photoUrl = uploaded.photoUrl;
+			$form.photoPublicId = uploaded.photoPublicId;
+			if (localPhotoPreview) URL.revokeObjectURL(localPhotoPreview);
+			localPhotoPreview = null;
+		} catch (error) {
+			photoError = error instanceof Error ? error.message : "Photo upload failed";
+			$form.photoUrl = photoUrl ?? undefined;
+			toast.error(photoError);
+		} finally {
+			uploadingPhoto = false;
+			input.value = "";
+		}
+	}
 </script>
 
 <form method="POST" {@attach fromAction(enhance)} class="grid gap-4">
-	{#if photoUrl}
-		<div class="overflow-hidden rounded-xl border bg-muted">
-			<img
-				src={photoUrl}
-				alt=""
-				class="aspect-square w-full object-cover"
-			/>
+	<div class="grid gap-2">
+		{#if displayPhotoUrl}
+			<div class="overflow-hidden rounded-xl border bg-muted">
+				<img
+					src={displayPhotoUrl}
+					alt=""
+					class="aspect-square w-full object-cover"
+				/>
+			</div>
+		{/if}
+
+		<div class="flex flex-wrap items-center gap-2">
+			<Button
+				type="button"
+				variant={displayPhotoUrl ? "outline" : "secondary"}
+				onclick={pickPhoto}
+				disabled={uploadingPhoto}
+			>
+				{#if uploadingPhoto}
+					<Loader2 class="size-4 animate-spin" />
+					Uploading photo...
+				{:else}
+					<Camera class="size-4" />
+					{displayPhotoUrl ? "Replace photo" : "Add photo"}
+				{/if}
+			</Button>
+			<p class="text-xs text-muted-foreground">
+				Choose from your photos or take a new picture on mobile.
+			</p>
 		</div>
-	{/if}
+		{#if photoError}<p class="text-xs text-destructive">{photoError}</p>{/if}
+		<input
+			bind:this={photoInput}
+			type="file"
+			accept="image/*"
+			class="hidden"
+			onchange={uploadSelectedPhoto}
+		/>
+	</div>
 
 	<div class="grid gap-1.5">
 		<Label for="name">Name <span class="text-destructive">*</span></Label>
@@ -281,8 +356,8 @@
 		value={$form.photoPublicId ?? ""}
 	/>
 
-	<Button type="submit" size="lg" disabled={$submitting}>
-		{$submitting ? "Saving…" : submitLabel}
+	<Button type="submit" size="lg" disabled={$submitting || uploadingPhoto}>
+		{uploadingPhoto ? "Uploading photo..." : $submitting ? "Saving…" : submitLabel}
 	</Button>
 
 	{#if $message}
