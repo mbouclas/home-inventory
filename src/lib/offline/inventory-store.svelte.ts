@@ -1,7 +1,14 @@
 import { browser } from '$app/environment';
 import { expiryStatus, todayIso } from '$lib/expiry';
 import type { InventoryItem, InventorySnapshot, ItemExpiryLot, OfflineOperation, SyncOperationsResponse } from '$lib/types/inventory';
+import type { Category, Tag } from '$lib/types/taxonomy';
 import { addOperation, deleteOperations, readOperations, readSnapshot, writeSnapshot } from './db';
+
+export type GlobalSearchResults = {
+	items: InventoryItem[];
+	categories: Array<Category & { items: InventoryItem[] }>;
+	tags: Array<Tag & { items: InventoryItem[] }>;
+};
 
 function sortItems(items: InventoryItem[]) {
 	return [...items].sort((a, b) => {
@@ -138,6 +145,39 @@ class InventoryStore {
 		);
 	}
 
+	globalSearch(query: string): GlobalSearchResults {
+		const q = query.trim().toLowerCase();
+		if (!q) return { items: [], categories: [], tags: [] };
+
+		const sorted = this.sortedItems;
+		const itemsById = new Map(sorted.map((item) => [item.id, item]));
+		const itemsForIds = (ids: number[]) => ids.map((id) => itemsById.get(id)).filter((item): item is InventoryItem => !!item);
+
+		return {
+			items: sorted.filter((item) => item.name.toLowerCase().includes(q)),
+			categories: this.categories
+				.filter((category) => category.name.toLowerCase().includes(q))
+				.map((category) => ({
+					...category,
+					items: itemsForIds(
+						this.itemCategories
+							.filter((link) => link.categoryId === category.id)
+							.map((link) => link.itemId)
+					)
+				})),
+			tags: this.tags
+				.filter((tag) => tag.name.toLowerCase().includes(q))
+				.map((tag) => ({
+					...tag,
+					items: itemsForIds(
+						this.itemTags
+							.filter((link) => link.tagId === tag.id)
+							.map((link) => link.itemId)
+					)
+				}))
+		};
+	}
+
 	itemsForCategorySlug(slug: string) {
 		const category = this.categories.find((item) => item.slug === slug);
 		if (!category) return [];
@@ -226,7 +266,7 @@ class InventoryStore {
 	}
 
 	private applySnapshot(snapshot: InventorySnapshot) {
-		this.items = snapshot.items.map((item) => ({ ...item, expiryLots: item.expiryLots ?? [] }));
+		this.items = snapshot.items.map((item) => withStock(item, item.expiryLots ?? []));
 		this.categories = snapshot.categories;
 		this.tags = snapshot.tags;
 		this.itemCategories = snapshot.itemCategories;

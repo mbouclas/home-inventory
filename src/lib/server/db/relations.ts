@@ -70,8 +70,11 @@ export function listItemsByCategorySlug(slug: string): Item[] {
 	return attachLots(
 		db
 			.query(
-				`SELECT ${ITEM_COLUMNS}
-				FROM items
+				`SELECT items.*
+				FROM (
+					SELECT ${ITEM_COLUMNS}
+					FROM items
+				) items
 				JOIN item_categories ON item_categories.item_id = items.id
 				JOIN categories ON categories.id = item_categories.category_id
 				WHERE categories.slug = $slug

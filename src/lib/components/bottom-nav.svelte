@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { LayoutDashboard, Pill, Plus, Shapes } from '@lucide/svelte';
+	import { LayoutDashboard, Pill, Plus, Search, Shapes } from '@lucide/svelte';
 	import { cn } from '$lib/utils';
 
-	type Props = { onAdd: () => void };
-	let { onAdd }: Props = $props();
+	type Props = { onAdd: () => void; onSearch: () => void };
+	let { onAdd, onSearch }: Props = $props();
 
 	const tabs = [
 		{ href: '/', label: 'Dashboard', icon: LayoutDashboard, match: (p: string) => p === '/' },
@@ -17,7 +17,7 @@
 	class="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
 	style="padding-bottom: env(safe-area-inset-bottom)"
 >
-	<div class="mx-auto grid max-w-md grid-cols-4 px-2 pt-1">
+	<div class="mx-auto grid max-w-md grid-cols-5 px-2 pt-1">
 		{#each tabs as tab (tab.href)}
 			{@const active = tab.match(page.url.pathname)}
 			<a
@@ -31,6 +31,14 @@
 				<span>{tab.label}</span>
 			</a>
 		{/each}
+		<button
+			type="button"
+			onclick={onSearch}
+			class="mx-auto flex size-11 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-transform hover:text-foreground active:scale-95"
+			aria-label="Search inventory"
+		>
+			<Search class="size-5" />
+		</button>
 		<button
 			type="button"
 			onclick={onAdd}

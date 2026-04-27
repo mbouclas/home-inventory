@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import { Toaster } from 'svelte-sonner';
 	import BottomNav from '$lib/components/bottom-nav.svelte';
+	import GlobalSearchDialog from '$lib/components/global-search-dialog.svelte';
 	import OfflineStatus from '$lib/components/offline-status.svelte';
 	import Sheet from '$lib/components/ui/sheet.svelte';
 	import Button from '$lib/components/ui/button.svelte';
@@ -13,6 +14,7 @@
 
 	let { children } = $props();
 	let addOpen = $state(false);
+	let searchOpen = $state(false);
 
 	function go(path: string) {
 		addOpen = false;
@@ -34,7 +36,9 @@
 	{@render children()}
 </div>
 
-<BottomNav onAdd={() => (addOpen = true)} />
+<BottomNav onAdd={() => (addOpen = true)} onSearch={() => (searchOpen = true)} />
+
+<GlobalSearchDialog bind:open={searchOpen} />
 
 <Sheet bind:open={addOpen} title="Add an item" description="Choose how to add it.">
 	<div class="grid gap-3 pt-2">

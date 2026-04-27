@@ -7,7 +7,9 @@
 	import { AlertTriangle, CalendarClock, PackageOpen, Pill, ChevronRight, Shapes } from '@lucide/svelte';
 
 	let { data }: { data: PageData } = $props();
-	const dashboard = $derived(inventory.lastSyncedAt ? inventory.dashboard : data);
+	const dashboard = $derived(
+		inventory.lastSyncedAt && (!inventory.online || inventory.pendingCount > 0) ? inventory.dashboard : data
+	);
 </script>
 
 <header class="px-4 pt-6 pb-4">
