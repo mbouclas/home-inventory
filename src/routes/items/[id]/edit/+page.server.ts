@@ -13,6 +13,7 @@ import {
 	setItemTags
 } from '$lib/server/db/relations';
 import { deletePhoto } from '$lib/server/cloudinary';
+import { emitAppEvent } from '$lib/server/events';
 
 export const load: PageServerLoad = async ({ params }) => {
 	const id = Number(params.id);
@@ -51,7 +52,10 @@ export const load: PageServerLoad = async ({ params }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ params, request }) => {
+	default: async ({ locals, params, request }) => {
+		const user = locals.user;
+		if (!user) throw redirect(303, '/login');
+
 		const id = Number(params.id);
 		if (!Number.isFinite(id)) throw error(400, 'bad id');
 
@@ -59,8 +63,9 @@ export const actions: Actions = {
 		if (!form.valid) return fail(400, { form });
 
 		const existing = db
-			.query(`SELECT photo_public_id AS photoPublicId FROM items WHERE id = $id`)
-			.get({ $id: id }) as { photoPublicId: string | null } | null;
+			.query(`SELECT name, user_id AS userId, photo_public_id AS photoPublicId FROM items WHERE id = $id`)
+			.get({ $id: id }) as { name: string; userId: number | null; photoPublicId: string | null } | null;
+		if (!existing) throw error(404, 'not found');
 
 		const tx = db.transaction(() => {
 			const now = Date.now();
@@ -92,9 +97,15 @@ export const actions: Actions = {
 			setItemTags(id, form.data.tags);
 		});
 		tx();
+		emitAppEvent('item.updated', {
+			actorUserId: user.id,
+			itemId: id,
+			itemOwnerUserId: existing.userId,
+			metadata: { name: form.data.name, previousName: existing.name, change: 'details' }
+		});
 
 		if (
-			existing?.photoPublicId &&
+			existing.photoPublicId &&
 			existing.photoPublicId !== form.data.photoPublicId
 		) {
 			try {

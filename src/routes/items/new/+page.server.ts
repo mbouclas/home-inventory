@@ -10,6 +10,7 @@ import {
 	setItemCategories,
 	setItemTags
 } from '$lib/server/db/relations';
+import { emitAppEvent } from '$lib/server/events';
 
 export const load: PageServerLoad = async ({ url }) => {
 	const categories = listCategories();
@@ -58,7 +59,10 @@ export const load: PageServerLoad = async ({ url }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ request }) => {
+	default: async ({ locals, request }) => {
+		const user = locals.user;
+		if (!user) throw redirect(303, '/login');
+
 		const form = await superValidate(request, zod4(itemFormSchema));
 		if (!form.valid) return fail(400, { form });
 
@@ -67,14 +71,15 @@ export const actions: Actions = {
 			const created = db
 				.query(
 					`INSERT INTO items (
-						name, dosage, description, usage, barcode,
+						user_id, name, dosage, description, usage, barcode,
 						photo_url, photo_public_id, updated_at
 					) VALUES (
-						$name, $dosage, $description, $usage, $barcode,
+						$userId, $name, $dosage, $description, $usage, $barcode,
 						$photoUrl, $photoPublicId, $updatedAt
 					) RETURNING id`
 				)
 				.get({
+					$userId: user.id,
 					$name: form.data.name,
 					$dosage: form.data.dosage ?? null,
 					$description: form.data.description ?? null,
@@ -91,6 +96,12 @@ export const actions: Actions = {
 			return created;
 		});
 		const created = tx();
+		emitAppEvent('item.created', {
+			actorUserId: user.id,
+			itemId: created.id,
+			itemOwnerUserId: user.id,
+			metadata: { name: form.data.name }
+		});
 
 		throw redirect(303, `/items?added=${created.id}`);
 	}

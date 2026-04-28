@@ -14,6 +14,7 @@ export const load: PageServerLoad = async () => {
 		.query(
 			`SELECT
 				items.id,
+				items.user_id AS userId,
 				items.barcode,
 				items.name,
 				items.dosage,

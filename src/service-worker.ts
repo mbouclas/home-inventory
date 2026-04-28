@@ -9,14 +9,27 @@ const worker = self as unknown as ServiceWorkerGlobalScope;
 const CACHE = `home-pharmacy-${version}`;
 const APP_SHELL = '/';
 const ASSETS = [...build, ...files, APP_SHELL];
+const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
 worker.addEventListener('install', (event) => {
+	if (isDev) {
+		event.waitUntil(worker.skipWaiting());
+		return;
+	}
+
 	event.waitUntil(
 		caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => worker.skipWaiting())
 	);
 });
 
 worker.addEventListener('activate', (event) => {
+	if (isDev) {
+		event.waitUntil(
+			caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key)))).then(() => worker.clients.claim())
+		);
+		return;
+	}
+
 	event.waitUntil(
 		caches
 			.keys()
@@ -26,7 +39,7 @@ worker.addEventListener('activate', (event) => {
 });
 
 worker.addEventListener('fetch', (event) => {
-	if (event.request.method !== 'GET') return;
+	if (isDev || event.request.method !== 'GET') return;
 
 	event.respondWith(
 		(async () => {

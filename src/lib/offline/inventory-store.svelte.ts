@@ -2,7 +2,7 @@ import { browser } from '$app/environment';
 import { expiryStatus, todayIso } from '$lib/expiry';
 import type { InventoryItem, InventorySnapshot, ItemExpiryLot, OfflineOperation, SyncOperationsResponse } from '$lib/types/inventory';
 import type { Category, Tag } from '$lib/types/taxonomy';
-import { addOperation, deleteOperations, readOperations, readSnapshot, writeSnapshot } from './db';
+import { addOperation, clearOfflineData, deleteOperations, readOperations, readSnapshot, writeSnapshot } from './db';
 
 export type GlobalSearchResults = {
 	items: InventoryItem[];
@@ -208,6 +208,17 @@ class InventoryStore {
 		} finally {
 			this.syncing = false;
 		}
+	}
+
+	async clearLocalData() {
+		await clearOfflineData();
+		this.items = [];
+		this.categories = [];
+		this.tags = [];
+		this.itemCategories = [];
+		this.itemTags = [];
+		this.lastSyncedAt = null;
+		this.pendingCount = 0;
 	}
 
 	async addStock(itemId: number, lots: Array<{ quantity: number; expiryDate: string | null }>) {

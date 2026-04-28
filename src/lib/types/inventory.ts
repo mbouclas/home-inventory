@@ -2,6 +2,7 @@ import type { Category, Tag } from './taxonomy';
 
 export type InventoryItem = {
 	id: number;
+	userId: number | null;
 	barcode: string | null;
 	name: string;
 	dosage: string | null;

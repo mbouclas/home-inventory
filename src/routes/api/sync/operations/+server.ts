@@ -5,6 +5,7 @@ import { db } from '$lib/server/db';
 import { deletePhoto } from '$lib/server/cloudinary';
 import { getInventorySnapshot } from '$lib/server/db/snapshot';
 import { addItemLots, consumeItemQuantity } from '$lib/server/db/lots';
+import { emitAppEvent } from '$lib/server/events';
 import type { SyncOperationResult } from '$lib/types/inventory';
 
 const Operation = z.discriminatedUnion('type', [
@@ -32,7 +33,12 @@ const Operation = z.discriminatedUnion('type', [
 
 const Body = z.object({ operations: z.array(Operation).max(200) });
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ locals, request }) => {
+	const user = locals.user;
+	if (!user) {
+		return json({ results: [], snapshot: getInventorySnapshot() }, { status: 401 });
+	}
+
 	const parsed = Body.safeParse(await request.json().catch(() => ({})));
 	if (!parsed.success) {
 		return json({ results: [], snapshot: getInventorySnapshot() }, { status: 400 });
@@ -43,19 +49,43 @@ export const POST: RequestHandler = async ({ request }) => {
 		try {
 			if (operation.type === 'addStock') {
 				addItemLots(operation.itemId, operation.lots, operation.createdAt);
+				const item = db
+					.query(`SELECT name, user_id AS userId FROM items WHERE id = $id`)
+					.get({ $id: operation.itemId }) as { name: string; userId: number | null } | null;
+				if (item) {
+					emitAppEvent('item.updated', {
+						actorUserId: user.id,
+						itemId: operation.itemId,
+						itemOwnerUserId: item.userId,
+						createdAt: operation.createdAt,
+						metadata: { name: item.name, change: 'addStock', source: 'offline-sync' }
+					});
+				}
 				results.push({ id: operation.id, ok: true });
 				continue;
 			}
 
 			if (operation.type === 'consumeStock') {
 				consumeItemQuantity(operation.itemId, operation.quantity, operation.createdAt);
+				const item = db
+					.query(`SELECT name, user_id AS userId FROM items WHERE id = $id`)
+					.get({ $id: operation.itemId }) as { name: string; userId: number | null } | null;
+				if (item) {
+					emitAppEvent('item.updated', {
+						actorUserId: user.id,
+						itemId: operation.itemId,
+						itemOwnerUserId: item.userId,
+						createdAt: operation.createdAt,
+						metadata: { name: item.name, change: 'consumeStock', source: 'offline-sync' }
+					});
+				}
 				results.push({ id: operation.id, ok: true });
 				continue;
 			}
 
 			const item = db
-				.query(`SELECT photo_public_id AS photoPublicId FROM items WHERE id = $id`)
-				.get({ $id: operation.itemId }) as { photoPublicId: string | null } | null;
+				.query(`SELECT name, user_id AS userId, photo_public_id AS photoPublicId FROM items WHERE id = $id`)
+				.get({ $id: operation.itemId }) as { name: string; userId: number | null; photoPublicId: string | null } | null;
 
 			if (item?.photoPublicId) {
 				try {
@@ -66,6 +96,15 @@ export const POST: RequestHandler = async ({ request }) => {
 			}
 
 			db.query(`DELETE FROM items WHERE id = $id`).run({ $id: operation.itemId });
+			if (item) {
+				emitAppEvent('item.deleted', {
+					actorUserId: user.id,
+					itemId: operation.itemId,
+					itemOwnerUserId: item.userId,
+					createdAt: operation.createdAt,
+					metadata: { name: item.name, source: 'offline-sync' }
+				});
+			}
 			results.push({ id: operation.id, ok: true });
 		} catch (error) {
 			results.push({

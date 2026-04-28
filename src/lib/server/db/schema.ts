@@ -1,5 +1,6 @@
 export type Item = {
 	id: number;
+	userId: number | null;
 	barcode: string | null;
 	name: string;
 	dosage: string | null;
@@ -12,6 +13,31 @@ export type Item = {
 	photoPublicId: string | null;
 	createdAt: number;
 	updatedAt: number;
+};
+
+export type User = {
+	id: number;
+	name: string | null;
+	email: string | null;
+	emailVerified: boolean;
+	image: string | null;
+	username: string;
+	displayUsername: string | null;
+	createdAt: number;
+	updatedAt: number;
+};
+
+export type SessionUser = User;
+
+export type AuditEvent = {
+	id: number;
+	actorUserId: number | null;
+	action: string;
+	entityType: string;
+	entityId: number | null;
+	itemOwnerUserId: number | null;
+	metadataJson: string | null;
+	createdAt: number;
 };
 
 export type ItemExpiryLot = {
@@ -33,6 +59,7 @@ export type NewTag = Omit<Tag, 'id' | 'createdAt' | 'updatedAt'>;
 
 export const ITEM_COLUMNS = `
 	id,
+	user_id AS userId,
 	barcode,
 	name,
 	dosage,
@@ -67,6 +94,7 @@ export const TAXONOMY_COLUMNS = `
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS items (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
 	barcode TEXT,
 	name TEXT NOT NULL,
 	dosage TEXT,
@@ -78,6 +106,33 @@ CREATE TABLE IF NOT EXISTS items (
 	updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS items_barcode_unique ON items (barcode);
+
+CREATE TABLE IF NOT EXISTS users (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	display_name TEXT,
+	email TEXT,
+	email_verified INTEGER NOT NULL DEFAULT 0,
+	image TEXT,
+	username TEXT NOT NULL UNIQUE,
+	display_username TEXT,
+	created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+	updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+);
+CREATE INDEX IF NOT EXISTS users_username_idx ON users (username);
+
+CREATE TABLE IF NOT EXISTS audit_events (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+	action TEXT NOT NULL,
+	entity_type TEXT NOT NULL,
+	entity_id INTEGER,
+	item_owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+	metadata_json TEXT,
+	created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+);
+CREATE INDEX IF NOT EXISTS audit_events_actor_idx ON audit_events (actor_user_id);
+CREATE INDEX IF NOT EXISTS audit_events_entity_idx ON audit_events (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS audit_events_created_at_idx ON audit_events (created_at);
 
 CREATE TABLE IF NOT EXISTS item_expiry_lots (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,

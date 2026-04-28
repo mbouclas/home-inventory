@@ -128,3 +128,17 @@ export async function deleteOperations(ids: string[]): Promise<void> {
 	for (const id of ids) store.delete(id);
 	await txDone(tx);
 }
+
+export async function clearOfflineData(): Promise<void> {
+	const db = await openOfflineDb();
+	const tx = db.transaction(
+		['items', 'categories', 'tags', 'itemCategories', 'itemTags', 'operations', 'meta'],
+		'readwrite'
+	);
+
+	for (const store of ['items', 'categories', 'tags', 'itemCategories', 'itemTags', 'operations', 'meta'] as StoreName[]) {
+		tx.objectStore(store).clear();
+	}
+
+	await txDone(tx);
+}
